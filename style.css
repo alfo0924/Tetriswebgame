@@ -1,0 +1,78 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f0f0f0; /* 淺灰色背景 */
+    font-family: sans-serif;
+    margin: 0;
+    overflow: hidden; /* 避免捲動 */
+}
+
+.game-container {
+    text-align: center;
+    background-color: #ffffff; /* 白色容器背景 */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+#tetris-canvas {
+    border: 1px solid #333; /* 畫布邊框 */
+    background-color: #000; /* 黑色遊戲背景 */
+    display: block; /* 使 canvas 成為區塊元素，方便置中 */
+    margin: 10px auto; /* 上下留白，左右自動置中 */
+}
+
+.score-area {
+    margin-bottom: 15px;
+    font-size: 1.1em;
+}
+
+.score-area span {
+    font-weight: bold;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 1em;
+    cursor: pointer;
+    margin: 5px;
+    border: none;
+    border-radius: 4px;
+    background-color: #4CAF50; /* 綠色按鈕 */
+    color: white;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #45a049; /* 按鈕懸停效果 */
+}
+
+/* RWD 範例：針對較小螢幕調整 */
+@media (max-width: 600px) {
+    .game-container {
+        padding: 15px;
+    }
+    #tetris-canvas {
+        /* 可以調整畫布大小或縮放 */
+        width: 200px; /* 範例：縮小寬度 */
+        height: 333px; /* 維持比例 */
+    }
+    h1 {
+        font-size: 1.5em;
+    }
+    button {
+        padding: 8px 16px;
+        font-size: 0.9em;
+    }
+    /* 考慮為行動裝置增加觸控按鈕 */
+}
+
+/* UI/UX 考量: 確保文字清晰可讀 */
+body, button, p {
+    color: #333; /* 深灰色文字，提高對比度 */
+}
+h1 {
+    color: #111;
+}

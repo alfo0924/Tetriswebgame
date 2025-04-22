@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>俄羅斯方塊遊戲</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="game-container">
+    <h1>俄羅斯方塊</h1>
+    <div class="score-area">
+        <p>分數: <span id="score">0</span></p>
+        <p>最高分數: <span id="high-score">0</span></p>
+    </div>
+    <canvas id="tetris-canvas" width="240" height="400"></canvas>
+    <!-- 可選：下一個方塊預覽區 -->
+    <!-- <div class="next-piece-area">
+        <p>下一個:</p>
+        <canvas id="next-piece-canvas" width="80" height="80"></canvas>
+    </div> -->
+    <button id="start-button">開始遊戲</button>
+    <button id="pause-button" style="display: none;">暫停/繼續</button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
