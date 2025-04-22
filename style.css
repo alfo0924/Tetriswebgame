@@ -1,78 +1,72 @@
+/* 基本重設與頁面樣式 */
 body {
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
+    min-height: 100vh; /* 確保垂直置中 */
     background-color: #f0f0f0; /* 淺灰色背景 */
-    font-family: sans-serif;
+    font-family: sans-serif; /* 使用無襯線字體 */
     margin: 0;
-    overflow: hidden; /* 避免捲動 */
 }
 
-.game-container {
-    text-align: center;
-    background-color: #ffffff; /* 白色容器背景 */
+/* 遊戲容器樣式 */
+#game-container {
+    background-color: #ffffff; /* 白色背景 */
     padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-radius: 10px; /* 圓角 */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1); /* 輕微陰影 */
+    text-align: center; /* 內部元素置中 */
 }
 
-#tetris-canvas {
-    border: 1px solid #333; /* 畫布邊框 */
-    background-color: #000; /* 黑色遊戲背景 */
-    display: block; /* 使 canvas 成為區塊元素，方便置中 */
-    margin: 10px auto; /* 上下留白，左右自動置中 */
-}
-
-.score-area {
+/* 標題樣式 */
+h1 {
+    color: #333; /* 深灰色文字 */
     margin-bottom: 15px;
-    font-size: 1.1em;
 }
 
-.score-area span {
-    font-weight: bold;
+/* 分數區域樣式 */
+#score-area {
+    margin-bottom: 15px;
+    font-size: 1.1em; /* 稍大字體 */
+    color: #555; /* 中灰色文字 */
 }
 
-button {
+#score-area p {
+    margin: 5px 0; /* 分數間距 */
+}
+
+/* 遊戲畫布樣式 */
+canvas#tetris {
+    border: 1px solid #999; /* 灰色邊框 */
+    display: block; /* 避免下方多餘空間 */
+    margin: 0 auto 15px auto; /* 置中並增加下方間距 */
+    background-color: #e0e0e0; /* 畫布背景色 */
+}
+
+/* 控制說明樣式 */
+#controls-info {
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 15px;
+}
+
+/* 開始按鈕樣式 */
+#start-button {
     padding: 10px 20px;
     font-size: 1em;
-    cursor: pointer;
-    margin: 5px;
-    border: none;
-    border-radius: 4px;
-    background-color: #4CAF50; /* 綠色按鈕 */
     color: white;
-    transition: background-color 0.3s ease;
+    background-color: #007bff; /* 藍色按鈕 */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer; /* 滑鼠指標 */
+    transition: background-color 0.2s; /* 過渡效果 */
 }
 
-button:hover {
-    background-color: #45a049; /* 按鈕懸停效果 */
+#start-button:hover {
+    background-color: #0056b3; /* 滑鼠懸停時變深 */
 }
 
-/* RWD 範例：針對較小螢幕調整 */
-@media (max-width: 600px) {
-    .game-container {
-        padding: 15px;
-    }
-    #tetris-canvas {
-        /* 可以調整畫布大小或縮放 */
-        width: 200px; /* 範例：縮小寬度 */
-        height: 333px; /* 維持比例 */
-    }
-    h1 {
-        font-size: 1.5em;
-    }
-    button {
-        padding: 8px 16px;
-        font-size: 0.9em;
-    }
-    /* 考慮為行動裝置增加觸控按鈕 */
-}
-
-/* UI/UX 考量: 確保文字清晰可讀 */
-body, button, p {
-    color: #333; /* 深灰色文字，提高對比度 */
-}
-h1 {
-    color: #111;
+#start-button:disabled {
+    background-color: #cccccc; /* 禁用時變灰色 */
+    cursor: not-allowed;
 }

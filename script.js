@@ -1,322 +1,348 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const canvas = document.getElementById('tetris-canvas');
-    const context = canvas.getContext('2d');
-    const scoreElement = document.getElementById('score');
-    const highScoreElement = document.getElementById('high-score');
-    const startButton = document.getElementById('start-button');
-    const pauseButton = document.getElementById('pause-button');
+const canvas = document.getElementById('tetris');
+const context = canvas.getContext('2d');
+const scoreElement = document.getElementById('score');
+const highScoreElement = document.getElementById('high-score');
+const startButton = document.getElementById('start-button');
 
-    // 從 localStorage 加載最高分，若無則為 0
-    let highScore = localStorage.getItem('tetrisHighScore') || 0;
-    highScoreElement.textContent = highScore;
+const COLS = 10; // 遊戲板寬度 (單位: 格)
+const ROWS = 20; // 遊戲板高度 (單位: 格)
+const BLOCK_SIZE = 24; // 每格的大小 (像素)
 
-    let score = 0;
-    let isPaused = false;
-    let gameInterval = null;
-    let gameSpeed = 1000; // 方塊下降速度 (毫秒)
-    let isGameOver = false;
+// 設定畫布實際像素尺寸
+canvas.width = COLS * BLOCK_SIZE;
+canvas.height = ROWS * BLOCK_SIZE;
 
-    // --- 遊戲核心邏輯變數 ---
-    const COLS = 10; // 遊戲區域寬度（格子數）
-    const ROWS = 20; // 遊戲區域高度（格子數）
-    const BLOCK_SIZE = canvas.width / COLS; // 計算每個格子的大小
+// 方塊顏色
+const COLORS = [
+    null,       // 0: 空白格
+    '#FF0D72',  // 1: I 型 (青色)
+    '#0DC2FF',  // 2: L 型 (藍色)
+    '#0DFF72',  // 3: J 型 (橘色)
+    '#F538FF',  // 4: O 型 (黃色)
+    '#FF8E0D',  // 5: S 型 (綠色)
+    '#FFE138',  // 6: T 型 (紫色)
+    '#3877FF',  // 7: Z 型 (紅色)
+];
 
-    let board = []; // 代表遊戲區域的二維陣列
-    let currentPiece; // 當前正在掉落的方塊
-    let currentX, currentY; // 當前方塊的位置
+// 方塊形狀 (用二維陣列表示)
+const SHAPES = [
+    [], // 空白
+    [[1, 1, 1, 1]], // I
+    [[2, 0, 0], [2, 2, 2]], // L
+    [[0, 0, 3], [3, 3, 3]], // J
+    [[4, 4], [4, 4]], // O
+    [[0, 5, 5], [5, 5, 0]], // S
+    [[0, 6, 0], [6, 6, 6]], // T
+    [[7, 7, 0], [0, 7, 7]]  // Z
+];
 
-    // 方塊形狀 (Tetrominoes) 定義 (範例)
-    const SHAPES = [
-        [[1, 1, 1, 1]], // I
-        [[1, 1], [1, 1]], // O
-        [[0, 1, 0], [1, 1, 1]], // T
-        [[1, 1, 0], [0, 1, 1]], // S
-        [[0, 1, 1], [1, 1, 0]], // Z
-        [[0, 0, 1], [1, 1, 1]], // L
-        [[1, 0, 0], [1, 1, 1]]  // J
-    ];
-    const COLORS = ['cyan', 'yellow', 'purple', 'green', 'red', 'orange', 'blue'];
+let board = createBoard(); // 遊戲主板
+let player; // 當前玩家方塊
+let score = 0;
+let highScore = localStorage.getItem('tetrisHighScore') || 0; // 從 localStorage 讀取最高分[1]
+highScoreElement.innerText = highScore;
+let dropCounter = 0;
+let dropInterval = 1000; // 初始掉落速度 (毫秒)
+let lastTime = 0;
+let gamePaused = true; // 初始為暫停狀態
+let animationFrameId = null; // 用於儲存 requestAnimationFrame 的 ID
 
-    // --- 函數定義 ---
+// ----- 遊戲核心功能 -----
 
-    // 初始化或重置遊戲板
-    function initBoard() {
-        board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-    }
+// 建立空的遊戲板
+function createBoard() {
+    return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+}
 
-    // 繪製遊戲板和方塊
-    function draw() {
-        // 清除畫布
-        context.fillStyle = '#000'; // 黑色背景
-        context.fillRect(0, 0, canvas.width, canvas.height);
+// 繪製單個方塊
+function drawBlock(x, y, color) {
+    context.fillStyle = color;
+    context.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+    context.strokeStyle = '#555'; // 方塊邊框顏色
+    context.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+}
 
-        // 繪製已固定的方塊
-        board.forEach((row, y) => {
-            row.forEach((value, x) => {
-                if (value > 0) { // value 代表顏色索引+1
-                    context.fillStyle = COLORS[value - 1];
-                    context.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-                    context.strokeStyle = '#222'; // 方塊邊框
-                    context.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-                }
-            });
+// 繪製整個遊戲畫面 (包含盤面和當前方塊)
+function draw() {
+    // 清除畫布
+    context.fillStyle = '#e0e0e0'; // 畫布背景色
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 繪製已固定的方塊
+    board.forEach((row, y) => {
+        row.forEach((value, x) => {
+            if (value !== 0) {
+                drawBlock(x, y, COLORS[value]);
+            }
         });
+    });
 
-        // 繪製當前移動的方塊
-        if (currentPiece) {
-            context.fillStyle = COLORS[currentPiece.colorIndex];
-            currentPiece.shape.forEach((row, dy) => {
-                row.forEach((value, dx) => {
-                    if (value) {
-                        context.fillRect((currentX + dx) * BLOCK_SIZE, (currentY + dy) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-                        context.strokeStyle = '#222';
-                        context.strokeRect((currentX + dx) * BLOCK_SIZE, (currentY + dy) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-                    }
-                });
-            });
-        }
-    }
+    // 繪製當前移動的方塊
+    drawMatrix(player.matrix, player.pos);
+}
 
-    // 隨機生成新方塊
-    function spawnPiece() {
-        const index = Math.floor(Math.random() * SHAPES.length);
-        currentPiece = {
-            shape: SHAPES[index],
-            colorIndex: index
-        };
-        // 計算起始位置 (置中)
-        currentX = Math.floor(COLS / 2) - Math.floor(currentPiece.shape[0].length / 2);
-        currentY = 0;
-
-        // 檢查是否一生成就碰撞 (Game Over)
-        if (!isValidMove(currentX, currentY, currentPiece.shape)) {
-            gameOver();
-        }
-    }
-
-    // 檢查移動是否有效 (邊界、碰撞)
-    function isValidMove(newX, newY, pieceShape) {
-        for (let y = 0; y < pieceShape.length; y++) {
-            for (let x = 0; x < pieceShape[y].length; x++) {
-                if (pieceShape[y][x]) {
-                    let boardX = newX + x;
-                    let boardY = newY + y;
-
-                    // 檢查邊界
-                    if (boardX < 0 || boardX >= COLS || boardY >= ROWS) {
-                        return false;
-                    }
-                    // 檢查下方碰撞 (只檢查 boardY >= 0 的部分)
-                    if (boardY >= 0 && board[boardY][boardX] > 0) {
-                        return false;
-                    }
-                }
+// 繪製指定形狀矩陣
+function drawMatrix(matrix, offset) {
+    matrix.forEach((row, y) => {
+        row.forEach((value, x) => {
+            if (value !== 0) {
+                drawBlock(x + offset.x, y + offset.y, COLORS[value]);
             }
-        }
-        return true;
-    }
-
-
-    // 方塊固定到遊戲板上
-    function freezePiece() {
-        currentPiece.shape.forEach((row, y) => {
-            row.forEach((value, x) => {
-                if (value) {
-                    // 確保不寫入超出頂部的區域
-                    if (currentY + y >= 0) {
-                        board[currentY + y][currentX + x] = currentPiece.colorIndex + 1; // 用顏色索引+1標記
-                    }
-                }
-            });
         });
-    }
+    });
+}
 
-    // 檢查並清除滿行
-    function clearLines() {
-        let linesCleared = 0;
-        for (let y = ROWS - 1; y >= 0; y--) {
-            if (board[y].every(cell => cell > 0)) {
-                // 清除該行，並將上方所有行往下移
-                board.splice(y, 1); // 移除滿行
-                board.unshift(Array(COLS).fill(0)); // 在頂部加入新空行
-                linesCleared++;
-                y++; // 因為移除了行，需要重新檢查當前索引的行
+// 碰撞檢測
+function collide(board, player) {
+    const matrix = player.matrix;
+    const pos = player.pos;
+    for (let y = 0; y < matrix.length; ++y) {
+        for (let x = 0; x < matrix[y].length; ++x) {
+            if (matrix[y][x] !== 0 && // 如果是方塊的一部分
+                (board[y + pos.y] && board[y + pos.y][x + pos.x]) !== 0) { // 且盤面上對應位置非空
+                return true; // 發生碰撞
             }
         }
-        // 更新分數
-        if (linesCleared > 0) {
-            updateScore(linesCleared);
-        }
     }
+    return false; // 無碰撞
+}
 
-    // 更新分數和最高分
-    function updateScore(linesCleared) {
-        // 根據消除行數給予不同分數 (範例)
-        let points = 0;
-        if (linesCleared === 1) points = 100;
-        else if (linesCleared === 2) points = 300;
-        else if (linesCleared === 3) points = 500;
-        else if (linesCleared >= 4) points = 800; // Tetris!
-
-        score += points;
-        scoreElement.textContent = score;
-
-        // 檢查並更新最高分
-        if (score > highScore) {
-            highScore = score;
-            highScoreElement.textContent = highScore;
-            localStorage.setItem('tetrisHighScore', highScore); // 儲存最高分到 localStorage [1]
-        }
-    }
-
-    // 方塊向下移動
-    function moveDown() {
-        if (isPaused || isGameOver) return;
-
-        if (isValidMove(currentX, currentY + 1, currentPiece.shape)) {
-            currentY++;
-        } else {
-            // 無法再向下移動，固定方塊
-            freezePiece();
-            // 檢查並清除行
-            clearLines();
-            // 生成新方塊
-            spawnPiece();
-        }
-        draw(); // 每次移動後重繪
-    }
-
-    // 方塊旋轉 (簡易版，未處理踢牆 T-Spin)
-    function rotatePiece() {
-        if (!currentPiece) return;
-        const originalShape = currentPiece.shape;
-        const numRows = originalShape.length;
-        const numCols = originalShape[0].length;
-        let newShape = Array.from({ length: numCols }, () => Array(numRows).fill(0));
-
-        for (let y = 0; y < numRows; y++) {
-            for (let x = 0; x < numCols; x++) {
-                newShape[x][numRows - 1 - y] = originalShape[y][x];
+// 將落地的方塊合併到遊戲板上
+function merge(board, player) {
+    player.matrix.forEach((row, y) => {
+        row.forEach((value, x) => {
+            if (value !== 0) {
+                board[y + player.pos.y][x + player.pos.x] = value;
             }
-        }
+        });
+    });
+}
 
-        // 檢查旋轉後是否有效，如果無效則不旋轉
-        if (isValidMove(currentX, currentY, newShape)) {
-            currentPiece.shape = newShape;
-        } else {
-            // 可選：嘗試左右 "踢牆" (Wall Kick) 來使旋轉有效
-            // 簡單處理：若緊靠左邊界，嘗試右移一格
-            if (isValidMove(currentX + 1, currentY, newShape)) {
-                currentX++;
-                currentPiece.shape = newShape;
-            }
-            // 簡單處理：若緊靠右邊界，嘗試左移一格
-            else if (isValidMove(currentX - 1, currentY, newShape)) {
-                currentX--;
-                currentPiece.shape = newShape;
-            }
-            // 更複雜的踢牆邏輯 (SRS) 在此省略
-        }
+// 方塊自動下落
+function playerDrop() {
+    if (gamePaused) return;
+    player.pos.y++;
+    if (checkCollision()) {
+        player.pos.y--; // 回退一步
+        merge(board, player); // 合併方塊
+        playerReset(); // 產生新方塊
+        arenaSweep(); // 檢查並消除行
+        updateScoreDisplay(); // 更新分數顯示
     }
+    dropCounter = 0; // 重設下落計時器
+}
 
-    // 處理鍵盤輸入
-    function handleKeyPress(event) {
-        if (isPaused || isGameOver || !currentPiece) return;
-
-        switch (event.keyCode) {
-            case 37: // 左箭頭
-                if (isValidMove(currentX - 1, currentY, currentPiece.shape)) {
-                    currentX--;
+// 檢查是否碰撞 (邊界或已固定方塊)
+function checkCollision() {
+    const matrix = player.matrix;
+    const pos = player.pos;
+    for (let y = 0; y < matrix.length; ++y) {
+        for (let x = 0; x < matrix[y].length; ++x) {
+            if (matrix[y][x] !== 0) {
+                let newY = y + pos.y;
+                let newX = x + pos.x;
+                if (newX < 0 || newX >= COLS || newY >= ROWS || (board[newY] && board[newY][newX] !== 0)) {
+                    return true; // 碰撞
                 }
-                break;
-            case 39: // 右箭頭
-                if (isValidMove(currentX + 1, currentY, currentPiece.shape)) {
-                    currentX++;
-                }
-                break;
-            case 40: // 下箭頭 (加速下降)
-                moveDown();
-                // 可選：加速下降時重置計時器，使其立即再次下降
-                // clearInterval(gameInterval);
-                // gameInterval = setInterval(moveDown, gameSpeed);
-                break;
-            case 38: // 上箭頭 (旋轉)
-            case 88: // X 鍵 (旋轉)
-                rotatePiece();
-                break;
-            case 32: // 空格鍵 (硬著陸)
-                while (isValidMove(currentX, currentY + 1, currentPiece.shape)) {
-                    currentY++;
-                }
-                freezePiece(); // 立刻固定
-                clearLines();
-                spawnPiece();
-                break;
-        }
-        draw(); // 按鍵操作後立即重繪
-    }
-
-    // 遊戲結束處理
-    function gameOver() {
-        isGameOver = true;
-        clearInterval(gameInterval);
-        gameInterval = null;
-        context.fillStyle = 'rgba(0, 0, 0, 0.75)';
-        context.fillRect(0, canvas.height / 3, canvas.width, canvas.height / 3);
-        context.font = '24px Arial';
-        context.fillStyle = 'white';
-        context.textAlign = 'center';
-        context.fillText('遊戲結束!', canvas.width / 2, canvas.height / 2);
-        startButton.textContent = '重新開始';
-        startButton.style.display = 'inline-block';
-        pauseButton.style.display = 'none';
-    }
-
-    // 開始遊戲
-    function startGame() {
-        if (gameInterval) { // 防止重複啟動
-            clearInterval(gameInterval);
-        }
-        isGameOver = false;
-        isPaused = false;
-        score = 0;
-        scoreElement.textContent = score;
-        initBoard();
-        spawnPiece();
-        draw();
-        gameInterval = setInterval(moveDown, gameSpeed); // 開始自動下降
-        startButton.style.display = 'none'; // 隱藏開始按鈕
-        pauseButton.textContent = '暫停';
-        pauseButton.style.display = 'inline-block'; // 顯示暫停按鈕
-    }
-
-    // 暫停/繼續遊戲
-    function togglePause() {
-        if (isGameOver) return;
-
-        isPaused = !isPaused;
-        if (isPaused) {
-            clearInterval(gameInterval);
-            gameInterval = null; // 清除計時器
-            pauseButton.textContent = '繼續';
-            // 可選：顯示暫停提示
-            context.font = '24px Arial';
-            context.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            context.textAlign = 'center';
-            context.fillText('已暫停', canvas.width / 2, canvas.height / 2);
-        } else {
-            pauseButton.textContent = '暫停';
-            draw(); // 清除暫停提示
-            gameInterval = setInterval(moveDown, gameSpeed); // 恢復計時器
+            }
         }
     }
+    return false; // 未碰撞
+}
 
 
-    // --- 事件監聽 ---
-    startButton.addEventListener('click', startGame);
-    pauseButton.addEventListener('click', togglePause);
-    document.addEventListener('keydown', handleKeyPress);
+// 方塊左右移動
+function playerMove(direction) {
+    if (gamePaused) return;
+    player.pos.x += direction;
+    if (checkCollision()) {
+        player.pos.x -= direction; // 碰撞則取消移動
+    }
+}
 
-    // 初始繪製 (例如繪製空畫布或 Logo)
-    draw(); // 可以先畫一個空的遊戲板
+// 產生新的隨機方塊
+function playerReset() {
+    const shapes = 'ILJOTSZ'; // 可用方塊類型字串
+    const randType = shapes[Math.floor(Math.random() * shapes.length)]; // 隨機選一個
+    const matrix = createPiece(randType); // 建立對應形狀
+    player = {
+        pos: { x: Math.floor(COLS / 2) - Math.floor(matrix[0].length / 2), y: 0 }, // 初始位置置中靠上
+        matrix: matrix,
+    };
+
+    // 檢查新方塊產生時是否立即碰撞 (遊戲結束條件)
+    if (checkCollision()) {
+        gameOver();
+    }
+}
+
+// 建立指定類型的方塊形狀矩陣
+function createPiece(type) {
+    switch (type) {
+        case 'I': return [[1, 1, 1, 1]];
+        case 'L': return [[2, 0, 0], [2, 2, 2]];
+        case 'J': return [[0, 0, 3], [3, 3, 3]];
+        case 'O': return [[4, 4], [4, 4]];
+        case 'S': return [[0, 5, 5], [5, 5, 0]];
+        case 'T': return [[0, 6, 0], [6, 6, 6]];
+        case 'Z': return [[7, 7, 0], [0, 7, 7]];
+    }
+}
+
+
+// 旋轉方塊
+function rotate(matrix, direction) {
+    // 矩陣轉置
+    for (let y = 0; y < matrix.length; ++y) {
+        for (let x = 0; x < y; ++x) {
+            [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+        }
+    }
+    // 行反轉 (根據方向)
+    if (direction > 0) { // 順時針
+        matrix.forEach(row => row.reverse());
+    } else { // 逆時針 (這裡我們只做順時針)
+        matrix.reverse();
+    }
+}
+
+
+// 玩家旋轉操作
+function playerRotate() {
+    if (gamePaused) return;
+    const originalPos = { ...player.pos }; // 保存原始位置
+    const matrix = player.matrix;
+    rotate(matrix, 1); // 順時針旋轉
+
+    // 處理旋轉後的碰撞 (牆壁碰撞調整)
+    let offset = 1;
+    while (checkCollision()) {
+        player.pos.x += offset; // 嘗試左右移動
+        offset = -(offset + (offset > 0 ? 1 : -1)); // 交替方向 +/-1, +/-2, ...
+        if (offset > matrix[0].length + 1) { // 如果調整範圍過大，說明無法旋轉
+            rotate(matrix, -1); // 旋轉回去
+            player.pos.x = originalPos.x; // 恢復原始 X 位置
+            return; // 取消旋轉
+        }
+    }
+}
+
+// 檢查並消除滿行
+function arenaSweep() {
+    let rowCount = 0;
+    outer: for (let y = ROWS - 1; y > 0; --y) {
+        for (let x = 0; x < COLS; ++x) {
+            if (board[y][x] === 0) { // 如果該行有空格，跳過檢查下一行
+                continue outer;
+            }
+        }
+        // 如果執行到這裡，表示第 y 行是滿的
+        const row = board.splice(y, 1)[0].fill(0); // 移除第 y 行，並用空行填充
+        board.unshift(row); // 在頂部加入新的空行
+        ++y; // 因為移除了行，需要重新檢查當前索引位置 (現在是上一行掉下來的)
+        rowCount++;
+    }
+
+    // 計算分數 (消除越多行，分數加成越高)
+    if (rowCount > 0) {
+        score += rowCount * 10 * rowCount; // 簡單計分: 1行10分, 2行40分, 3行90分...
+        // 可以根據需要調整計分規則，參考標準 Tetris 計分
+        // 例如: [1] 中提到的計分方式
+    }
+}
+
+
+// 更新分數顯示
+function updateScoreDisplay() {
+    scoreElement.innerText = score;
+    if (score > highScore) {
+        highScore = score;
+        highScoreElement.innerText = highScore;
+        localStorage.setItem('tetrisHighScore', highScore); // 保存新的最高分到 localStorage[1]
+    }
+}
+
+// 遊戲主循環
+function update(time = 0) {
+    if (gamePaused) {
+        animationFrameId = requestAnimationFrame(update); // 即使暫停也要繼續請求下一幀，以便能恢復
+        return;
+    }
+
+    const deltaTime = time - lastTime;
+    lastTime = time;
+
+    dropCounter += deltaTime;
+    if (dropCounter > dropInterval) {
+        playerDrop();
+    }
+
+    draw(); // 繪製遊戲畫面
+    animationFrameId = requestAnimationFrame(update); // 請求下一幀動畫
+}
+
+// 遊戲結束處理
+function gameOver() {
+    console.log("遊戲結束！");
+    gamePaused = true;
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId); // 停止遊戲循環
+        animationFrameId = null;
+    }
+    alert(`遊戲結束！\n你的分數: ${score}\n最高分數: ${highScore}`);
+    startButton.disabled = false; // 允許重新開始
+    startButton.innerText = "重新開始";
+}
+
+// 開始遊戲
+function startGame() {
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId); // 確保舊的循環停止
+    }
+    board = createBoard(); // 清空遊戲板
+    score = 0; // 分數歸零
+    updateScoreDisplay(); // 更新顯示
+    dropInterval = 1000; // 重設速度
+    playerReset(); // 產生第一個方塊
+    gamePaused = false; // 取消暫停
+    lastTime = performance.now(); // 重設時間戳
+    dropCounter = 0;
+    startButton.disabled = true; // 禁用開始按鈕
+    startButton.innerText = "遊戲中...";
+    update(); // 啟動遊戲循環
+}
+
+
+// ----- 事件監聽 -----
+document.addEventListener('keydown', event => {
+    if (gamePaused) return; // 遊戲暫停時不處理按鍵
+
+    switch (event.keyCode) {
+        case 37: // 左箭頭
+            playerMove(-1);
+            break;
+        case 39: // 右箭頭
+            playerMove(1);
+            break;
+        case 40: // 下箭頭 (加速下落)
+            playerDrop();
+            break;
+        case 38: // 上箭頭 (旋轉)
+            playerRotate();
+            break;
+        // 可以添加其他按鍵，例如 P 鍵暫停
+        // case 80: // 'P' 鍵
+        //    gamePaused = !gamePaused;
+        //    if (!gamePaused) {
+        //       lastTime = performance.now(); // 恢復時重置時間戳
+        //       update(); // 如果是從 requestAnimationFrame 暫停，需要重新啟動
+        //    }
+        //    break;
+    }
 });
+
+startButton.addEventListener('click', startGame);
+
+// 初始繪製 (顯示空盤面和分數)
+updateScoreDisplay();
+draw(); // 初始繪製空盤面
